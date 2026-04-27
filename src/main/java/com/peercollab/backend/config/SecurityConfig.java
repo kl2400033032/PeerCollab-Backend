@@ -35,6 +35,9 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    @Value("${app.auth.mode:cookie}")
+    private String authMode;
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
@@ -42,11 +45,16 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        if (usesBearerAuth()) {
+            http.csrf(csrf -> csrf.disable());
+        } else {
+            http.csrf(csrf -> csrf
+                    .ignoringRequestMatchers("/ws/**", "/ws-fallback/**")
+                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+            );
+        }
+
         http
-                .csrf(csrf -> csrf
-                        .ignoringRequestMatchers("/ws/**", "/ws-fallback/**")
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
@@ -97,5 +105,9 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private boolean usesBearerAuth() {
+        return "bearer".equalsIgnoreCase(authMode);
     }
 }
